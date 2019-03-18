@@ -122,23 +122,28 @@ public abstract class TaskCompiler {
       }
 
       FetchWork fetch = new FetchWork(loadFileDesc.getSourcePath(),
-                                      resultTab, qb.getParseInfo().getOuterQueryLimit());
+              resultTab, qb.getParseInfo().getOuterQueryLimit());
       fetch.setSource(pCtx.getFetchSource());
       fetch.setSink(pCtx.getFetchSink());
 
+      int fetchLimit = HiveConf.getIntVar(conf, HiveConf.ConfVars.HIVELIMITOPTMAXFETCH);
+      if (globalLimitCtx.isEnable()) {
+        // For the FetchTask, the limit optimization requires we fetch all the rows
+        // in memory and count how many rows we get. It's not practical if the
+        // limit factor is too big
+        if (globalLimitCtx.getGlobalLimit() > fetchLimit) {
+          LOG.info("For FetchTask, LIMIT " + globalLimitCtx.getGlobalLimit() + " > " + fetchLimit
+                  + ". Doesn't qualify limit optimiztion.");
+          globalLimitCtx.disableOpt();
+        } else if (globalLimitCtx.getGlobalLimit() >= 0
+                && (fetch.getLimit() == -1 || globalLimitCtx.getGlobalLimit() < fetch.getLimit())) {
+          LOG.info("For FetchTask, set LIMIT " + globalLimitCtx.getGlobalLimit());
+          fetch.setLimit(globalLimitCtx.getGlobalLimit());
+        }
+      }
       pCtx.setFetchTask((FetchTask) TaskFactory.get(fetch, conf));
 
-      // For the FetchTask, the limit optimization requires we fetch all the rows
-      // in memory and count how many rows we get. It's not practical if the
-      // limit factor is too big
-      int fetchLimit = HiveConf.getIntVar(conf, HiveConf.ConfVars.HIVELIMITOPTMAXFETCH);
-      if (globalLimitCtx.isEnable() && globalLimitCtx.getGlobalLimit() > fetchLimit) {
-        LOG.info("For FetchTask, LIMIT " + globalLimitCtx.getGlobalLimit() + " > " + fetchLimit
-            + ". Doesn't qualify limit optimiztion.");
-        globalLimitCtx.disableOpt();
-
-      }
-      if (qb.getParseInfo().getOuterQueryLimit() == 0) {
+      if (fetch.getLimit() == 0) {
         // Believe it or not, some tools do generate queries with limit 0 and than expect
         // query to run quickly. Lets meet their requirement.
         LOG.info("Limit 0. No query execution needed.");
@@ -277,6 +282,8 @@ public abstract class TaskCompiler {
     if (globalLimitCtx.isEnable() && globalLimitCtx.getLastReduceLimitDesc() != null) {
       LOG.info("set least row check for LimitDesc: " + globalLimitCtx.getGlobalLimit());
       globalLimitCtx.getLastReduceLimitDesc().setLeastRows(globalLimitCtx.getGlobalLimit());
+      LOG.info("set limit row check for LimitDesc: " + globalLimitCtx.getGlobalLimit());
+      globalLimitCtx.getLastReduceLimitDesc().setLimit(globalLimitCtx.getGlobalLimit());
       List<ExecDriver> mrTasks = Utilities.getMRTasks(rootTasks);
       for (ExecDriver tsk : mrTasks) {
         tsk.setRetryCmdWhenFail(true);
