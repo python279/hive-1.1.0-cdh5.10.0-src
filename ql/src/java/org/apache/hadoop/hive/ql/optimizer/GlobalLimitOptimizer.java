@@ -18,6 +18,7 @@
 
 package org.apache.hadoop.hive.ql.optimizer;
 
+import java.lang.Boolean;
 import java.util.Map;
 
 import org.apache.commons.logging.Log;
@@ -55,6 +56,7 @@ import org.apache.hadoop.hive.ql.plan.OperatorDesc;
 public class GlobalLimitOptimizer implements Transform {
 
   private final Log LOG = LogFactory.getLog(GlobalLimitOptimizer.class.getName());
+  private Boolean isPartitioned = false;
 
   public ParseContext transform(ParseContext pctx) throws SemanticException {
     Context ctx = pctx.getContext();
@@ -74,6 +76,12 @@ public class GlobalLimitOptimizer implements Transform {
         && !globalLimitCtx.ifHasTransformOrUDTF() &&
         nameToSplitSample.isEmpty()) {
 
+      TableScanOperator ts = (TableScanOperator) topOps.values().toArray()[0];
+      Table tab = ts.getConf().getTableMetadata();
+      if (tab.isPartitioned()) {
+          isPartitioned = true;
+      }
+
       // Here we recursively check:
       // 1. whether there are exact one LIMIT in the query
       // 2. whether there is no aggregation, group-by, distinct, sort by,
@@ -90,10 +98,7 @@ public class GlobalLimitOptimizer implements Transform {
 
       // query qualify for the optimization
       if (tempGlobalLimit != null && tempGlobalLimit != 0) {
-        TableScanOperator ts = (TableScanOperator) topOps.values().toArray()[0];
-        Table tab = ts.getConf().getTableMetadata();
-
-        if (!tab.isPartitioned()) {
+        if (!isPartitioned) {
           if (qbParseInfo.getDestToWhereExpr().isEmpty()) {
             globalLimitCtx.enableOpt(tempGlobalLimit);
           }
@@ -143,6 +148,7 @@ public class GlobalLimitOptimizer implements Transform {
         && qbParseInfo.getDestToDistributeBy().isEmpty()
         && qbParseInfo.getDestToOrderBy().isEmpty()
         && qbParseInfo.getDestToSortBy().isEmpty()
+        && (isPartitioned || (!isPartitioned && qbParseInfo.getDestToWhereExpr().isEmpty()))
         && qbParseInfo.getDestToAggregationExprs().size() <= 1
         && qbParseInfo.getDestToDistinctFuncExprs().size() <= 1
         && qbParseInfo.getNameToSample().isEmpty()) {
