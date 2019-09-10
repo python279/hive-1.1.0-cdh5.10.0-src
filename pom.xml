@@ -191,7 +191,7 @@
    <!-- This needs to be removed before checking in-->
     <repository>
       <id>cdh.releases.repo</id>
-      <url>https://repository.cloudera.com/content/groups/cdh-releases-rcs</url>
+      <url>http://repository.cloudera.com/content/groups/cdh-releases-rcs</url>
       <name>CDH Releases Repository</name>
       <snapshots>
         <enabled>false</enabled>
@@ -199,7 +199,7 @@
     </repository>
     <repository>
       <id>cdh.snapshots.repo</id>
-      <url>https://repository.cloudera.com/content/repositories/snapshots</url>
+      <url>http://repository.cloudera.com/content/repositories/snapshots</url>
       <name>CDH Snapshots Repository</name>
       <snapshots>
         <enabled>true</enabled>
@@ -240,7 +240,7 @@
      </repository>
      <repository>
        <id>sonatype-snapshot</id>
-       <url>https://oss.sonatype.org/content/repositories/snapshots</url>
+       <url>http://oss.sonatype.org/content/repositories/snapshots</url>
        <releases>
          <enabled>false</enabled>
        </releases>
